@@ -9,17 +9,13 @@ import io
 import time
 import contextlib
 import json
-import pickle
-import warnings
 import dataclasses
 import stat
 import numpy as np
 import pandas as pd
 import abipy.core.abinit_units as abu
-try:
-    import ase
-except ImportError as exc:
-    raise ImportError("ase not installed. Try `pip install ase`.") from exc
+import ase
+
 from pathlib import Path
 from inspect import isclass
 from multiprocessing import Pool
@@ -2143,18 +2139,26 @@ class AseMdLog(TextFile):
     @add_fig_kwargs
     def plot(self, **kwargs) -> Figure:
         """
+        Plot all the keys in the dataframe.
         """
         ynames = [k for k in self.df.keys() if k != self.time_key]
-        axes = self.df.plot.line(x=self.time_key, y=ynames, subplots=True)
+        axes = self.df.plot.line(x=self.time_key, y=ynames, subplots=True, grid=True)
         return axes[0].get_figure()
 
     @add_fig_kwargs
     def histplot(self, **kwargs) -> Figure:
         """
+        Histogram plot.
         """
         ynames = [k for k in self.df.keys() if k != self.time_key]
-        axes = self.df.plot.hist(column=ynames, subplots=True)
-        return axes[0].get_figure()
+
+        ax_list, fig, plt = get_axarray_fig_plt(None, nrows=len(ynames), ncols=1,
+                                                sharex=False, sharey=False, squeeze=True)
+
+        for yname, ax in zip(ynames, ax_list):
+            self.df.plot.hist(column=[yname], ax=ax, grid=True)
+
+        return fig
 
     def yield_figs(self, **kwargs):  # pragma: no cover
         """
