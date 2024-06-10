@@ -1066,7 +1066,6 @@ def main():
 
     elif options.command == "chemenv":
         # Based on https://matgenb.materialsvirtuallab.org/2018/01/01/ChemEnv-How-to-automatically-identify-coordination-environments-in-a-structure.html
-
         from pymatgen.analysis.chemenv.coordination_environments.chemenv_strategies import SimplestChemenvStrategy
         from pymatgen.analysis.chemenv.coordination_environments.coordination_geometry_finder import LocalGeometryFinder
         from pymatgen.analysis.chemenv.coordination_environments.structure_environments import LightStructureEnvironments
@@ -1152,7 +1151,7 @@ def main():
         print("\nFor the meaning of ce_symbol, see https://pubs.acs.org/doi/10.1021/acs.chemmater.7b02766")
 
     else:
-        raise ValueError("Unsupported command: %s" % options.command)
+        raise ValueError(f"Unsupported {options.command=}")
 
     return 0
 

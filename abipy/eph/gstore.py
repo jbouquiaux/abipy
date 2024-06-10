@@ -28,14 +28,15 @@ from abipy.eph.common import BaseEphReader
 
 def _allclose(arr_name, array1, array2, verbose: int, rtol=1e-5, atol=1e-8) -> bool:
     """
+    Wraps numpy allclose.
     """
     if np.allclose(array1, array2, rtol=rtol, atol=atol):
         if verbose:
-            cprint(f"The arrays for {arr_name} are almost equal within the given tolerance.", color="green")
+            cprint(f"The arrays for {arr_name} are almost equal within the tolerances {rtol=}, {atol=}", color="green")
         return True
 
     if verbose:
-        cprint(f"The arrays for {arr_name} are not almost equal within the given tolerance.", color="red")
+        cprint(f"The arrays for {arr_name} are not almost equal within the tolerances {rtol=}, {atol=}", color="red")
 
     #differing_indices = np.where(~np.isclose(array1, array2, atol=atol))
     #for index in zip(*differing_indices):
@@ -45,7 +46,8 @@ def _allclose(arr_name, array1, array2, verbose: int, rtol=1e-5, atol=1e-8) -> b
 
 class GstoreFile(AbinitNcFile, Has_Header, Has_Structure, Has_ElectronBands): # , NotebookWriter):
     """
-    This file stores the e-ph matrix elements and provides methods to analyze and plot results.
+    This file stores the e-ph matrix elements produced by the EPH code of Abinit
+    and provides methods to analyze and plot results.
 
     Usage example:
 
@@ -55,9 +57,12 @@ class GstoreFile(AbinitNcFile, Has_Header, Has_Structure, Has_ElectronBands): # 
             print(gstore)
 
             for spin in range(gstore.nsppol):
+                # Extract the object storing the g for this spin.
                 gqk = gstore.gqk_spin[spin]
                 print(gqk)
-                df = gqk.get_gdf_at_qpt_kpt([1/2, 0, 0], [0, 0, 0])
+
+                # Get a Dataframe with g(k, q) for all modes and bands.
+                df = gqk.get_gd2f_at_qpt_kpt([1/2, 0, 0], [0, 0, 0])
                 print(df)
 
     .. rubric:: Inheritance Diagram
@@ -228,7 +233,7 @@ class Gqk:
 
     def get_dataframe(self, what: str = "g2") -> pd.DataFrame:
         """
-        Build and return a dataframe with all the |g(k+q,k)|^2 if what == "g2" or
+        Build and return a dataframe with all the |g(k,q)|^2 if what == "g2" or
         all |v_nk|^2 if what == "v2".
         """
         if what == "g2":
@@ -259,18 +264,21 @@ class Gqk:
 
         return df
 
-    def get_gdf_at_qpt_kpt(self, qpoint, kpoint) -> pd.DataFrame:
+    def get_g2_qpt_kpt(self, qpoint, kpoint) -> np.ndarray:
         """
-        Build and return a dataframe with the |g(k+q,k)|^2 for the given (qpoint, kpoint) pair.
+        Return numpy array with the |g(k,q)|^2 for the given (qpoint, kpoint) pair.
         """
-        spin = self.spin
-
         # Find the internal indices of (qpoint, kpoint)
-        iq_g, qpoint = self.gstore.r.find_iq_glob_qpoint(qpoint, spin)
-        ik_g, kpoint = self.gstore.r.find_ik_glob_kpoint(kpoint, spin)
+        iq_g, qpoint = self.gstore.r.find_iq_glob_qpoint(qpoint, self.spin)        
+        ik_g, kpoint = self.gstore.r.find_ik_glob_kpoint(kpoint, self.spin)        
+        g2 = self.g2 if self.g2 is not None else np.abs(self.gvals) ** 2           
+        return g2[iq_g, ik_g]                                                
 
-        g2 = self.g2 if self.g2 is not None else np.abs(self.gvals) ** 2
-        g2_slice = g2[iq_g, ik_g]
+    def get_gd2f_at_qpt_kpt(self, qpoint, kpoint) -> pd.DataFrame:
+        """
+        Build and return a dataframe with the |g(k,q)|^2 for the given (qpoint, kpoint) pair.
+        """
+        g2_slice = self.get_g2_qpt_kpt(qpoint, kpoint)
         shape, ndim = g2_slice.shape, g2_slice.ndim
         indices = np.indices(shape).reshape(ndim, -1).T
         df = pd.DataFrame(indices, columns=["imode", "m_kq", "n_k"])
@@ -384,7 +392,7 @@ class GstoreReader(BaseEphReader):
 
     def find_iq_glob_qpoint(self, qpoint, spin: int):
         """Find the internal index of the qpoint needed to access the gvals array."""
-        qpoint = np.array(qpoint)
+        qpoint = np.asarray(qpoint)
         for iq_g, iq_bz in enumerate(self.qglob2bz[spin]):
             if np.allclose(qpoint, self.qbz[iq_bz]):
                 return iq_g, qpoint
@@ -393,7 +401,7 @@ class GstoreReader(BaseEphReader):
 
     def find_ik_glob_kpoint(self, kpoint, spin: int):
         """Find the internal indices of the kpoint needed to access the gvals array."""
-        kpoint = np.array(kpoint)
+        kpoint = np.asarray(kpoint)
         for ik_g, ik_bz in enumerate(self.kglob2bz[spin]):
             if np.allclose(kpoint, self.kbz[ik_bz]):
                 return ik_g, kpoint

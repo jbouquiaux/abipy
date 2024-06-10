@@ -9,8 +9,8 @@ The preferred way of importing this module is:
 from __future__ import annotations
 
 import os
-#import json
 
+from subprocess import Popen, PIPE, run
 from monty.string import is_string
 from pymatgen.core.units import Time, Memory
 from abipy.tools.typing import PathLike
@@ -137,15 +137,13 @@ def any2mb(s):
         return int(s)
 
 
-def slurm_get_jobs(username=None) -> dict[int, dict]:
+def slurm_get_jobs() -> dict[int, dict]:
     """
     Invoke squeue, parse output and return list of dictionaries with job info indexed by job id.
     """
     # Based on https://gist.github.com/stevekm/7831fac98473ea17d781330baa0dd7aa
-    username = os.getlogin() if username is None else username
-    import subprocess as sp
-    process = sp.Popen(['squeue', '-u',  username, "-o", '%all'],
-                       stdout=sp.PIPE, stderr=sp.PIPE, shell=False, universal_newlines=True)
+    process = Popen(["squeue", "--me", "-o", '%all'],
+                       stdout=PIPE, stderr=PIPE, shell=False, universal_newlines=True)
     proc_stdout, proc_stderr = process.communicate()
 
     lines = proc_stdout.split('\n')
@@ -283,7 +281,7 @@ def slurm_sbatch(slurm_filepath: PathLike) -> int:
     dirpath = os.path.dirname(slurm_filepath)
     #print("dirpath", dirpath)
     with cd(dirpath):
-        from subprocess import Popen, PIPE
+
         # need string not bytes so must use universal_newlines
         slurm_filepath = str(slurm_filepath)
         process = Popen(['sbatch', slurm_filepath], stdout=PIPE, stderr=PIPE, universal_newlines=True)
@@ -307,6 +305,57 @@ def slurm_sbatch(slurm_filepath: PathLike) -> int:
                 raise exc
         else:
             raise RuntimeError(f"Error while submitting {slurm_filepath=} with {process.returncode=},\n{out=}\n{err=}")
+
+
+def get_sacct_info():
+    """
+    Run the sacct command to get the job information
+    """
+    try:
+
+        result = run(['sacct', '--format=JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode', '--noheader'],
+                      stdout=PIPE, stderr=PIPE, text=True)
+
+        # Check if the command was successful
+        if result.returncode != 0:
+            print(f"Error running sacct: {result.stderr}")
+            return None
+
+        # Process the output
+        jobs_info = result.stdout.strip().split('\n')
+        jobs = [dict(zip(['JobID', 'JobName', 'Partition', 'Account', 'AllocCPUS', 'State', 'ExitCode'], job.split())) 
+                for job in jobs_info]
+        return jobs
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
+
+
+def get_completed_job_info(job_id: int | str):
+    try:
+        # Define the fields we want to retrieve
+        fields = "JobID,JobName,Partition,Account,AllocCPUS,State,ExitCode,Start,End,Elapsed,TotalCPU,MaxRSS"
+
+        # Run the sacct command with the specified fields for the given job ID
+        result = run(
+            ['sacct', '--jobs', str(job_id), '--format', fields, '--noheader', '--parsable2'],
+            stdout=PIPE, stderr=PIPE, text=True
+        )
+
+        # Check if the command was successful
+        if result.returncode != 0:
+            print(f"Error running sacct: {result.stderr}")
+            return None
+
+        # Process the output
+        lines = result.stdout.strip().split('\n')
+        jobs = [dict(zip(fields.split(','), line.split('|'))) for line in lines]
+        return jobs
+
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return None
 
 
 def get_slurm_template(body: str) -> str:
