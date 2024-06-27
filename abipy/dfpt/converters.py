@@ -719,7 +719,7 @@ def get_BORN_lines(unitcell, borns, epsilon,
     return lines
 
 @requires(Phonopy, "phonopy not installed!")
-def ddb_ucell_to_ddb_supercell(unit_ddb=None,unit_ddb_filepath=None,supercell_ddb_path='out_DDB',nac=True) -> DdbFile:
+def ddb_ucell_to_ddb_supercell(unit_ddb=None,unit_ddb_filepath=None,supercell_ddb_path='out_DDB',nac=False) -> DdbFile:
     """
     Convert a DDB file or DDB instance of a unit cell on a q-mesh to the corresponding supercell
     at q=Gamma.
@@ -746,7 +746,7 @@ def ddb_ucell_to_ddb_supercell(unit_ddb=None,unit_ddb_filepath=None,supercell_dd
 
     return ddb_sc
 
-def ddb_ucell_to_phonopy_supercell(unit_ddb=None,unit_ddb_filepath=None,nac=True) -> Phonopy:
+def ddb_ucell_to_phonopy_supercell(unit_ddb=None,unit_ddb_filepath=None,nac=False) -> Phonopy:
     """
     Convert a DDB file or DDB instance of a unit cell on a q-mesh to the corresponding supercell
     at q=Gamma.

@@ -72,6 +72,8 @@ class DeltaSCFTest(AbipyTest):
 
         idefect_dSCF=0
         coords_defect_dSCF=Delta_333.structuregs.cart_coords[idefect_dSCF]
+        coords_defect_phonons=main_defect_coords_in_pristine
+
 
         lineshapes=[Lineshape.from_phonopy_phonons(E_zpl=Delta_333.E_zpl(),
                                                 phonopy_ph=ph,
@@ -79,7 +81,8 @@ class DeltaSCFTest(AbipyTest):
                                                 use_forces=True,
                                                 dSCF_displacements=Delta_333.diff_pos(),
                                                 dSCF_forces=Delta_333.forces_gs,
-                                                coords_defect_dSCF=coords_defect_dSCF) for ph in ph_emb_s]
+                                                coords_defect_dSCF=coords_defect_dSCF,
+                                                coords_defect_phonons=coords_defect_phonons) for ph in ph_emb_s]
 
 
         self.assert_almost_equal(lineshapes[0].S_tot(),4.697242297808644, decimal=5)
