@@ -38,10 +38,10 @@ def get_G_t(T, S_nu, omega_nu):
         S_nu: Parial Huang-Rhys factors
         omega_nu: phonon frequencies
     """        
-    n_step = 10001
+    n_step = 100001
     t = np.linspace(-1e-11, +1e-11, n_step)  # time in the fourier domain
 
-    freq = omega_nu
+    freq = np.array(omega_nu)
     freq_SI = freq * (abu.eV_s) # in SI rad/sec
     
     S=np.zeros(n_step, dtype=complex)
@@ -79,7 +79,7 @@ def A_hw_help(S_nu,omega_nu,eff_freq,E_zpl,T, lamb, w, model='multi-D'):
         t, G_t = get_G_t(T, S_nu, omega_nu)
 
     elif model == 'one-D':
-        t, G_t = get_G_t(T, S_nu=np.array([np.sum(S_nu)]), omega_nu=eff_freq)#np.array([self.eff_freq_multiD()]))
+        t, G_t = get_G_t(T, S_nu=np.array([np.sum(S_nu)]), omega_nu=np.array(eff_freq))#np.array([self.eff_freq_multiD()]))
 
     n_step = len(t)
     Lambda = abu.eV_s*0.001/(np.pi*2) * lamb  # meV to Hz

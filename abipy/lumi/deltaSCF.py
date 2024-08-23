@@ -547,7 +547,7 @@ class DeltaSCF():
 
         return df
     
-    def draw_displacements_vesta(self,in_path, mass_weighted = False,
+    def draw_displacements_vesta(self,in_path, mass_weighted = False, draw_forces=False, 
                  scale_vector=20,width_vector=0.3,color_vector=[255,0,0],centered=True,
                  factor_keep_vectors=0.1,
                  out_path="VESTA_FILES",out_filename="gs_ex_relaxation"):
@@ -584,6 +584,9 @@ class DeltaSCF():
         displacements=self.diff_pos()
         if mass_weighted == True:
             displacements=self.diff_pos_mass_weighted()
+
+        if draw_forces ==True:
+            displacements=self.forces_gs()
 
         for iatom in range(natoms) :
             magnitudes.append(np.sqrt(displacements[iatom][0]**2 + displacements[iatom][1]**2 + displacements[iatom][2]**2))
