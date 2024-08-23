@@ -46,7 +46,7 @@ from abipy.core import Structure
 from abipy.tools.iotools import workdir_with_prefix, PythonScript, yaml_safe_load_path
 from abipy.tools.typing import Figure, PathLike
 from abipy.tools.printing import print_dataframe
-from abipy.tools.serialization import HasPickleIO
+from abipy.tools.serialization import HasPickleIO, mjson_write
 from abipy.tools.context_managers import Timer
 from abipy.tools.parallel import get_max_nprocs # , pool_nprocs_pmode
 from abipy.abio.enums import StrEnum, EnumMixin
@@ -1011,19 +1011,40 @@ class AseRelaxation:
             raise RuntimeError("Cannot read ASE traj as traj_path is None")
         return read(self.traj_path, index=":")
 
-    #def __str__(self):
-    #def to_string(self, verbose=0)
+    def __str__(self) -> str:
+        return self.to_string()
+
+    def to_string(self, verbose: int = 0) -> str:
+        """
+        String representation with verbosity level verbose
+        """
+        lines = []
+        app = lines.append
+        app(">>> BEGIN INFO ON INITIAL STRUCTURE:")
+        s0 = Structure.as_structure(self.r0.atoms)
+        app(str(s0))
+        app(s0.spget_summary())
+        app("<<< END INFO ON INITIAL STRUCTURE")
+        app("")
+        app("")
+        app(">>> BEGIN INFO ON FINAL STRUCTURE:")
+        app("Relaxed structure:")
+        s1 = Structure.as_structure(self.r1.atoms)
+        app(str(s1))
+        app(s1.spget_summary())
+        app("<<< END INFO ON FINAL STRUCTURE")
+
+        return "\n".join(lines)
 
     def summarize(self, tags=None, mode="smart", stream=sys.stdout):
-        """"""
+        """
+        """
         if self.traj_path is None: return
         r0, r1 = self.r0, self.r1
         #r0, r1 = AseResults.from_traj_inds(self.traj, 0, -1)
         if tags is None: tags = ["unrelaxed", "relaxed"],
         df = dataframe_from_results_list(tags, [r0, r1], mode=mode)
         print_dataframe(df, end="\n", file=stream)
-
-    #def plot(self, **kwargs):
 
 
 def dataframe_from_results_list(index: list, results_list: list[AseResults],
@@ -1448,6 +1469,10 @@ class CalcBuilder:
     ]
 
     def __init__(self, name: str, dftd3_args=None, **kwargs):
+        """
+            name: Model name.
+            kwargs: optional arguments are stored in calc_kwargs
+        """
         self.name = name
 
         # Extract nn_type and model_name from name
@@ -1457,7 +1482,9 @@ class CalcBuilder:
         if ":" in name:
             self.nn_type, last = name.split(":")
             if last.endswith(".yaml") or last.endswith(".yml"):
+                print("Reading Calculator kwargs from file:", last)
                 self.calc_kwargs = yaml_safe_load_path(last)
+                print("calc_kwargs:", self.calc_kwargs)
             else:
                 self.model_name = last
 
@@ -1478,6 +1505,7 @@ class CalcBuilder:
             print("Activating dftd3 with arguments:", self.dftd3_args)
 
         self._model = None
+        self.calc_kwargs.update(kwargs)
 
     def __str__(self):
         if self.model_name is not None:
@@ -1507,7 +1535,15 @@ class CalcBuilder:
         #if reset: self.reset()
         self.reset()
 
-        if self.nn_type == "m3gnet":
+        if self.nn_type == "emt":
+            # Set the calculator (EMT for testing purposes)
+            from ase.calculators.emt import EMT
+            class MyEMTCalculator(_MyCalculator, EMTCalculator):
+                """Add abi_forces and abi_stress"""
+
+            return MyEMTCalculator(**self.calc_kwargs)
+
+        elif self.nn_type == "m3gnet":
             # m3gnet legacy version.
             if self._model is None:
                 silence_tensorflow()
@@ -1650,6 +1686,7 @@ class CalcBuilder:
             #     """Add abi_forces and abi_stress"""
 
             model = self.calc_kwargs.pop("model", "medium")
+            print("calc_kwargs:", self.calc_kwargs)
 
             calc = mace_mp(model=model,
                            #cls=MyMACECalculator,
@@ -1721,13 +1758,17 @@ class MlBase(HasPickleIO):
     and object persistence via pickle.
     """
 
-    def __init__(self, workdir, prefix=None, exist_ok=False):
+    def __init__(self, workdir, fig_ext: str = ".pdf", prefix=None, exist_ok=False):
         """
         Build directory with `prefix` if `workdir` is None else create it.
         If exist_ok is False (the default), a FileExistsError is raised if the target directory already exists.
+
+        Args:
+            fig_ext: File extension for matplotlib figures.
         """
         self.workdir = workdir_with_prefix(workdir, prefix, exist_ok=exist_ok)
         self.basename_info = []
+        self.fig_ext = fig_ext
 
     def __str__(self):
         # Delegated to the subclass.
@@ -1756,6 +1797,7 @@ class MlBase(HasPickleIO):
 
     def savefig(self, basename: str, fig, info: str) -> None:
         """Save matplotlib figure in workdir."""
+        basename = basename + self.fig_ext
         self.add_basename_info(basename, info)
         fig.savefig(self.workdir / basename)
 
@@ -1765,8 +1807,7 @@ class MlBase(HasPickleIO):
         with open(self.workdir / basename, "wb") as fd:
             write_traj(fd, traj)
 
-    def write_json(self, basename: str, data, info: str,
-                   indent=4, stream=None, **kwargs) -> None:
+    def write_json(self, basename: str, data, info: str, indent=4, stream=None, **kwargs) -> None:
         """Write data in JSON format and mirror output to `stream`."""
         self.add_basename_info(basename, info)
         with open(self.workdir / basename, "wt") as fh:
@@ -1805,7 +1846,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 """
-
         path = self.workdir / basename
         with path.open("wt") as fh:
             fh.write(f"""\
@@ -2042,6 +2082,8 @@ class MlRelaxer(MlBase):
         relax = relax_atoms(self.atoms, **relax_kws)
         relax.summarize(tags=["unrelaxed", "relaxed"])
 
+        print(relax.to_string(verbose=self.verbose))
+
         # Write files with final structure and dynamics.
         formats = ["poscar",]
         outpath_fmt = write_atoms(self.atoms, workdir, self.verbose, formats=formats)
@@ -2172,12 +2214,13 @@ class MlMd(MlBase):
     Perform MD calculations with ASE and ML potential.
     """
 
-    def __init__(self, atoms: Atoms, temperature, timestep, steps, loginterval,
+    def __init__(self, atoms: Atoms, temperature, pressure, timestep, steps, loginterval,
                  ensemble, nn_name, verbose, workdir, prefix=None):
         """
         Args:
             atoms: ASE atoms.
             temperature: Temperature in K
+            pressure:
             timestep:
             steps: Number of steps.
             loginterval:
@@ -2190,6 +2233,7 @@ class MlMd(MlBase):
         super().__init__(workdir, prefix, exist_ok=True)
         self.atoms = atoms
         self.temperature = temperature
+        self.pressure = pressure
         self.timestep = timestep
         self.steps = steps
         self.loginterval = loginterval
@@ -2204,6 +2248,7 @@ class MlMd(MlBase):
 {self.__class__.__name__} parameters:
 
     temperature = {self.temperature} K
+    pressure    = {self.pressure}
     timestep    = {self.timestep} fs
     steps       = {self.steps}
     loginterval = {self.loginterval}
@@ -2228,6 +2273,7 @@ class MlMd(MlBase):
         md_dict = dict(
             temperature=self.temperature,
             timestep=self.timestep,
+            pressure=self.pressure,
             steps=self.steps,
             loginterval=self.loginterval,
             ensemble=self.ensemble,
@@ -2253,12 +2299,12 @@ class MlMd(MlBase):
         md = MolecularDynamics(
             atoms=self.atoms,
             ensemble=self.ensemble,
-            temperature=self.temperature,   # K
-            timestep=self.timestep,         # fs,
-            #pressure,
-            trajectory=str(traj_file),      # save trajectory to md.traj
-            logfile=str(logfile),           # log file for MD
-            loginterval=self.loginterval,   # interval for record the log
+            temperature=self.temperature,        # K
+            timestep=self.timestep,              # fs,
+            pressure=self.pressure,
+            trajectory=str(traj_file),           # save trajectory to md.traj
+            logfile=str(logfile),                # log file for MD
+            loginterval=self.loginterval,        # interval for record the log
             append_trajectory=append_trajectory, # If True, the new structures are appended to the trajectory
         )
 
@@ -2319,7 +2365,7 @@ class _MlNebBase(MlBase):
                         stream=sys.stdout if self.verbose else None)
 
         # create a figure like that coming from ase-gui.
-        self.savefig("neb_barrier.png", nebtools.plot_band(), info="Figure with NEB barrier")
+        self.savefig("neb_barrier", nebtools.plot_band(), info="Figure with NEB barrier")
         return neb_data
 
     def read_neb_data(self) -> dict:
@@ -2371,8 +2417,7 @@ class MlGsList(_MlNebBase):
             atoms.calc = CalcBuilder(self.nn_name).get_calculator()
             results.append(AseResults.from_atoms(atoms))
 
-        write_vasp_xdatcar(self.workdir / "XDATCAR", self.atoms_list,
-                           label="XDATCAR with list of atoms.")
+        write_vasp_xdatcar(self.workdir / "XDATCAR", self.atoms_list, label="XDATCAR with list of atoms.")
 
         self.postprocess_images(self.atoms_list)
         self._finalize()
@@ -2447,9 +2492,8 @@ class MlNeb(_MlNebBase):
         if verbose:
             #s += scompare_two_atoms("initial image", self.initial_atoms, "final image", self.final_atoms)
             file = io.StringIO()
-            fmt = "poscar"
             diff_two_structures("initial image", self.initial_atoms,
-                                "final image", self.final_atoms, fmt, file=file)
+                                "final image", self.final_atoms, fmt="poscar", file=file)
             s += "\n" + file.getvalue()
         return s
 
@@ -2616,7 +2660,7 @@ class MultiMlNeb(_MlNebBase):
         ax.set_title(r'$E_\mathrm{{f}} \approx$ {:.3f} eV; '
                      r'$E_\mathrm{{r}} \approx$ {:.3f} eV; '
                      r'$\Delta E$ = {:.3f} eV'.format(ef, er, de))
-        self.savefig("neb_barrier.png", fig, info="Figure with NEB barrier")
+        self.savefig("neb_barrier", fig, info="Figure with NEB barrier")
 
         self._finalize()
 
@@ -3000,8 +3044,7 @@ class MolecularDynamics:
         """
         Args:
             atoms (Atoms): atoms to run the MD
-            ensemble (str): choose from 'nvt' or 'npt'. NPT is not tested,
-                use with extra caution
+            ensemble (str): choose from 'nvt' or 'npt'. NPT is not tested, use with extra caution
             temperature (float): temperature for MD simulation, in K
             timestep (float): time step in fs
             pressure (float): pressure in eV/A^3
@@ -3020,9 +3063,14 @@ class MolecularDynamics:
         if taup is None:
             taup = 1000 * timestep * units.fs
 
-        ensemble = ensemble.lower()
+        if compressibility_au is None:
+            # The compressibility of the material, water 4.57E-5 bar-1, in bar-1
+            compressibility_au = 4.57E-5 / (1e5 * units.Pascal)
 
-        if ensemble == "nvt":
+        self.ensemble = ensemble.lower()
+
+        if self.ensemble == "nvt":
+
             self.dyn = NVTBerendsen(
                 self.atoms,
                 timestep * units.fs,
@@ -3034,22 +3082,15 @@ class MolecularDynamics:
                 append_trajectory=append_trajectory,
             )
 
-        #elif ensemble == "npt":
-        #    self.dyn = NPT(self.atoms,
-        #                   timestep * units.fs,
-        #                   temperature_K=temperature,
-        #                   externalstrees=pressure,
-        #                   ttime=None,
-        #                   trajectory=trajectory,
-        #                   logfile=logfile,
-        #                   loginterval=loginterval,
-        #                   append_trajectory=append_trajectory,
-        #   )
-
-        #elif ensemble == "inhomo_npt_berendsen":
-        elif ensemble == "npt":
+        #elif self.ensemble == "npt":
+        elif self.ensemble == "inhomo_npt_berendsen":
             """
-            NPT ensemble default to Inhomogeneous_NPTBerendsen thermo/barostat
+            Berendsen (constant N, P, T) molecular dynamics.
+            This dynamics scale the velocities and volumes to maintain a constant
+            pressure and temperature.  The size of the unit cell is allowed to change
+            independently in the three directions, but the angles remain constant.
+
+            NPT with Inhomogeneous_NPTBerendsen thermo/barostat
             This is a more flexible scheme that fixes three angles of the unit
             cell but allows three lattice parameter to change independently.
             """
@@ -3071,8 +3112,13 @@ class MolecularDynamics:
                 # this option is not supported in ASE at this point (I have sent merge request there)
             )
 
-        elif ensemble == "npt_berendsen":
+        elif self.ensemble == "npt_berendsen":
             """
+            Berendsen (constant N, P, T) molecular dynamics.
+            This dynamics scale the velocities and volumes to maintain a constant
+            pressure and temperature.  The shape of the simulation cell is not
+            altered, if that is desired use Inhomogenous_NPTBerendsen.
+
             This is a similar scheme to the Inhomogeneous_NPTBerendsen.
             This is a less flexible scheme that fixes the shape of the
             cell - three angles are fixed and the ratios between the three lattice constants.
@@ -3091,8 +3137,56 @@ class MolecularDynamics:
                 append_trajectory=append_trajectory,
             )
 
+        elif self.ensemble == "npt":
+        #elif self.ensemble == "npt_nhpr":
+            """
+            Combined Nose-Hoover and Parrinello-Rahman dynamics, creating an NPT (or N,stress,T) ensemble.
+
+            IMPORTANT: the cell matrix must be upper triangle (lattice vectors as row-vectors).
+
+            * The ttime and pfactor are quite critical[4], too small values may
+              cause instabilites and/or wrong fluctuations in T / p.  Too
+              large values cause an oscillation which is slow to die.  Good
+              values for the characteristic times seem to be 25 fs for ttime,
+              and 75 fs for ptime (used to calculate pfactor), at least for
+              bulk copper with 15000-200000 atoms.  But this is not well
+              tested, it is IMPORTANT to monitor the temperature and
+              stress/pressure fluctuations.
+
+            pfactor: float
+                A constant in the barostat differential equation.  If
+                a characteristic barostat timescale of ptime is
+                desired, set pfactor to ptime^2 * B
+                (where ptime is in units matching
+                eV, Å, u; and B is the Bulk Modulus, given in eV/Å^3).
+                Set to None to disable the barostat.
+                Typical metallic bulk moduli are of the order of
+                100 GPa or 0.6 eV/A^3.
+
+                WARNING: Not specifying pfactor sets it to None, disabling the
+                barostat.
+            """
+            ttime = None
+            pfactor = None
+            if ttime is None:
+                ttime = 25
+            if pfactor is None:
+                pfactor = 75** 2 * 10
+
+            self.dyn = NPT(self.atoms,
+                           timestep * units.fs,
+                           temperature_K=temperature,
+                           externalstress=pressure,
+                           ttime=ttime,
+                           pfactor=pfactor,
+                           trajectory=trajectory,
+                           logfile=logfile,
+                           loginterval=loginterval,
+                           append_trajectory=append_trajectory,
+            )
+
         else:
-            raise ValueError(f"{ensemble=} not supported")
+            raise ValueError(f"{self.ensemble=} not supported")
 
         self.trajectory = trajectory
         self.logfile = logfile
@@ -3107,7 +3201,8 @@ class MolecularDynamics:
             steps (int): number of MD steps
         """
         from ase.md import MDLogger
-        self.dyn.attach(MDLogger(self.dyn, self.atoms, '-', header=True, stress=False,
+        stress = self.ensemble not in ("nvt", )
+        self.dyn.attach(MDLogger(self.dyn, self.atoms, '-', header=True, stress=stress,
                         peratom=True, mode="a"), interval=self.loginterval)
         self.dyn.run(steps)
 
@@ -3123,13 +3218,16 @@ class GsMl(MlBase):
         self.verbose = verbose
 
     def run(self):
+        """Run the calculation."""
         calc = CalcBuilder(self.nn_name).get_calculator()
         self.atoms.calc = calc
         res = AseResults.from_atoms(self.atoms)
         print(res.to_string(verbose=self.verbose))
 
-        # Write json file with GS results.
-        from abipy.tools.serialization import mjson_write
+        # Write json file GS results.
+        # To read the dictionary from json use:
+        #   from abipy.tools.serialization import mjson_load
+        #   data = mjson_load(self.workdir / "gs.json")
         data = dict(
             structure=Structure.as_structure(self.atoms),
             ene=res.ene,
@@ -3138,13 +3236,85 @@ class GsMl(MlBase):
         )
         mjson_write(data, self.workdir / "gs.json", indent=4)
 
-        # To read the dictionary from json use:
-        #from abipy.tools.serialization import mjson_load
-        #data = mjson_load(self.workdir / "gs.json")
-
         # Write ASE trajectory file with results.
         with open(self.workdir / "gs.traj", "wb") as fd:
             write_traj(fd, [self.atoms])
+
+        return 0
+
+
+class FrozenPhononMl(MlBase):
+    """
+    Frozen-phonon calculations with ML potential.
+    """
+
+    @classmethod
+    def from_ddb_file(cls, ddb_filepath, qpoint, eta_list, nn_name, verbose, workdir, prefix=None, **anaddb_kwargs):
+        """
+        """
+        from abipy.dfpt.ddb import DdbFile
+        with DdbFile(ddb_filepath) as ddb:
+            # Call anaddb to get all phonon modes for this q-point.
+            phbands = ddb.anaget_phmodes_at_qpoint(qpoint=qpoint, verbose=verbose, **anaddb_kwargs)
+
+        return cls(ddb.structure, qpoint, phbands.phdispl_cart, eta_list, nn_name, verbose, workdir, prefix=prefix)
+
+    def __init__(self, structure, qpoint, phdispl_cart, eta_list, nn_name, verbose, workdir, prefix=None):
+        """
+        Args:
+            qpoint: q-vector in reduced coordinate in reciprocal space.
+            displ_cart: displacement of the atoms in real space .
+            eta: pre-factor multiplying the displacement. Gives the value in Angstrom of the largest displacement.
+        """
+        super().__init__(workdir, prefix)
+        self.initial_structure = structure
+        natom = len(structure)
+        self.nn_name = nn_name
+        self.verbose = verbose
+        # TODO: Should check that qpoint is [1/Nx, 1/Ny, 1/Nz]
+        self.qpoint = np.array(qpoint)
+        self.phdispl_cart = phdispl_cart
+        #self.phdispl_cart = np.reshape(phdispl_cart, (-1, 3*natom, 3*natom))
+        self.eta_list = np.array(eta_list)
+
+    def run(self):
+        """Run the calculation."""
+        calc = CalcBuilder(self.nn_name).get_calculator()
+
+        max_sc = np.ones(3, dtype=int)
+        for i, qf in enumerate(self.qpoint):
+            if qf != 0: max_sc[i] = np.round(1 / qf)
+        print(f"{max_sc =}")
+
+        for displ_cart in self.phdispl_cart:
+            for eta in self.eta_list:
+                print(f"{eta=}")
+                print(f"{displ_cart.shape=}")
+                print(f"{displ_cart=}")
+                scell = self.initial_structure.frozen_phonon(self.qpoint, displ_cart, eta=eta, frac_coords=True, max_supercell=max_sc)
+                print(scell.scale_matrix)
+                print(scell.structure)
+
+                scell.structure.to_ase_atoms()
+                atoms.calc = calc
+                res = AseResults.from_atoms(atoms)
+                #print(res.to_string(verbose=self.verbose))
+
+        # Write json file GS results.
+        # To read the dictionary from json use:
+        #   from abipy.tools.serialization import mjson_load
+        #   data = mjson_load(self.workdir / "gs.json")
+        #data = dict(
+        #    structure=Structure.as_structure(self.atoms),
+        #    ene=res.ene,
+        #    stress=res.stress,
+        #    forces=res.forces,
+        #)
+        #mjson_write(data, self.workdir / "gs.json", indent=4)
+
+        ## Write ASE trajectory file with results.
+        #with open(self.workdir / "gs.traj", "wb") as fd:
+        #    write_traj(fd, [self.atoms])
 
         return 0
 

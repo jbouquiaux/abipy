@@ -101,7 +101,6 @@ def issamek(k1, k2, atol=None):
     """
     k1 = np.asarray(k1)
     k2 = np.asarray(k2)
-    #if k1.shape != k2.shape:
 
     return is_integer(k1 - k2, atol=atol)
 
@@ -177,7 +176,7 @@ def kmesh_from_mpdivs(mpdivs, shifts, pbc=False, order="bz"):
         mpdivs: The three MP divisions.
         shifts: Array-like object with the MP shift.
         pbc: If True, periodic images of the k-points will be included i.e. closed mesh.
-        order: "unit_cell" if the kpoint coordinates must be in [0,1)
+        order: "unit_cell" if the kpoint coordinates must be in [0, 1)
                "bz" if the kpoint coordinates must be in [-1/2, +1/2)
     """
     shifts = np.reshape(shifts, (-1, 3))
@@ -221,6 +220,7 @@ def map_grid2ibz(structure, ibz, ngkpt, has_timrev, pbc=False):
     if abispg is None:
         raise ValueError("Structure does not contain Abinit spacegroup info!")
 
+
     # Extract rotations in reciprocal space (FM part).
     symrec_fm = [o.rot_g for o in abispg.fm_symmops]
 
@@ -243,26 +243,14 @@ def map_grid2ibz(structure, ibz, ngkpt, has_timrev, pbc=False):
 
     if np.any(bzgrid2ibz == -1):
         #for ik_bz, ik_ibz in enumerate(self.bzgrid2ibz): print(ik_bz, ">>>", ik_ibz)
-        msg = "Found %s/%s invalid entries in bzgrid2ibz array" % ((bzgrid2ibz == -1).sum(), bzgrid2ibz.size)
-        msg += "This can happen if there an inconsistency between the input IBZ and ngkpt"
-        msg += "ngkpt: %s, has_timrev: %s" % (str(ngkpt), has_timrev)
+        msg =  " Found %s/%s invalid entries in bzgrid2ibz array\n" % ((bzgrid2ibz == -1).sum(), bzgrid2ibz.size)
+        msg += " This can happen if there is an inconsistency between the input IBZ and ngkpt\n"
+        msg += " ngkpt: %s, has_timrev: %s\n" % (str(ngkpt), has_timrev)
+        msg += f" {abispg=}\n"
         raise ValueError(msg)
 
     bz2ibz = bzgrid2ibz.flatten()
     return bz2ibz
-
-    """
-    for ik_bz, kbz in enumerate(bz):
-        found = False
-        for ik_ibz, kibz in enumerate(ibz):
-            if found: break
-            for symmop in structure.spacegroup:
-                krot = symmop.rotate_k(kibz)
-                if issamek(krot, kbz):
-                    bz2ibz[ik_bz] = ik_ibz
-                    found = True
-                    break
-    """
 
 
 def has_timrev_from_kptopt(kptopt):
@@ -406,6 +394,42 @@ def map_kpoints(other_kpoints, other_lattice, ref_lattice, ref_kpoints, ref_symr
 #    #return irred_map
 
 
+def kpoints_indices(frac_coords, ngkpt, check_mesh=0) -> np.ndarray:
+    """
+    This function is used when we need to insert k-dependent quantities in a (nx, ny, nz) array.
+    It computes the indices of the k-points assuming these points belong to a mesh with ngkpt divisions.
+
+    Args:
+        frac_coords
+        ngkpt:
+        check_mesh:
+    """
+
+    # Transforms kpt in its corresponding reduced number in the interval [0,1[
+    k_indices = [np.round((kpt % 1) * ngkpt) for kpt in frac_coords]
+    k_indices = np.array(k_indices, dtype=int)
+
+    # Debug secction.
+    if check_mesh:
+        print(f"kpoints_indices: Testing whether k-points belong to the {ngkpt =} mesh")
+        ierr = 0
+        for kpt, inds in zip(frac_coords, k_indices):
+            if check_mesh > 1: print("kpt:", kpt, "inds:", inds)
+            same_k = np.array((inds[0]/ngkpt[0], inds[1]/ngkpt[1], inds[2]/ngkpt[2]))
+            if not issamek(kpt, same_k):
+                ierr += 1; print(kpt, "-->", same_k)
+        if ierr:
+            raise ValueError("Wrong mapping")
+
+        #for kpt, inds in zip(frac_coords, k_indices):
+        #    if np.any(inds >= ngkpt):
+        #        raise ValueError(f"inds >= nkgpt for {kpt=}, {np.round(kpt % 1)=} {inds=})")
+
+        print("Check succesfull!")
+
+    return k_indices
+
+
 def find_irred_kpoints_generic(structure, kfrac_coords, verbose=1):
     """
     Remove the k-points that are connected to each other by one of the
@@ -493,6 +517,7 @@ def kpath_from_bounds_and_ndivsm(bounds, ndivsm, structure):
         for j in range(ndivs[i]):
             p = bounds[i] + j * (bounds[i + 1] - bounds[i]) / ndivs[i]
             path.append(p)
+
     path.append(bounds[-1])
 
     return np.array(path)
@@ -948,7 +973,7 @@ class KpointList(collections.abc.Sequence):
     def __ne__(self, other):
         return not (self == other)
 
-    def index(self, kpoint):
+    def index(self, kpoint) -> int:
         """
         Returns: the first index of kpoint in self.
 
@@ -971,7 +996,7 @@ class KpointList(collections.abc.Sequence):
             if k == k0: kinds.append(ik)
         return np.array(kinds)
 
-    def find(self, kpoint):
+    def find(self, kpoint) -> int:
         """
         Returns: first index of kpoint. -1 if not found
         """
@@ -1007,7 +1032,7 @@ class KpointList(collections.abc.Sequence):
 
         dist = np.empty(len(self))
         for i, kpt in enumerate(self):
-            dist[i] = kpt.lattice.norm(kpt.frac_coords - frac_coords)
+            dist[i] = float(kpt.lattice.norm(kpt.frac_coords - frac_coords))
 
         ind = dist.argmin()
         return ind, self[ind], np.copy(dist[ind])
@@ -1367,6 +1392,8 @@ class Kpath(KpointList):
             for line in self.lines:
                 vals_on_line = eigens[spin, line, band]
         """
+        if len(self) < 2:
+            return tuple()
         prev = self.versors[0]
         lines = [[0]]
 
@@ -1877,7 +1904,7 @@ class Ktables:
         for ik_bz, ir_gp_id in enumerate(mapping):
             inds = np.where(uniq == ir_gp_id)
             assert len(inds) == 1
-            self.bz2ibz[ik_bz] = inds[0]
+            self.bz2ibz[ik_bz] = int(inds[0])
 
     def __str__(self):
         return self.to_string()

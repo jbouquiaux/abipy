@@ -148,8 +148,8 @@ class PhononBands:
             # does not contain all the directions required by AbiPy.
             # So we read NonAnalyticalPh only if we know that all directions are available.
             # The flag has_abipy_non_anal_ph is set at the Fortran level. See e.g ifc_mkphbs
-            if ("non_analytical_directions" in r.rootgrp.variables and
-                "has_abipy_non_anal_ph" in r.rootgrp.variables):
+            if ("non_analytical_directions" in r.rootgrp.variables and "has_abipy_non_anal_ph" in r.rootgrp.variables):
+            #if ("non_analytical_directions" in r.rootgrp.variables):
                 #print("Found non_anal_ph term compatible with AbiPy plotter.")
                 non_anal_ph = NonAnalyticalPh.from_file(filepath)
 
@@ -182,6 +182,9 @@ class PhononBands:
             if obj.endswith(".pickle"):
                 with open(obj, "rb") as fh:
                     return cls.as_phbands(pickle.load(fh))
+
+            #print("Returning PhononBands.from_file(obj)")
+            #return PhononBands.from_file(obj)
 
             from abipy.abilab import abiopen
             with abiopen(obj) as abifile:
@@ -1084,7 +1087,7 @@ See also <https://forum.abinit.org/viewtopic.php?f=10&t=545>
 
     @add_fig_kwargs
     def plot(self, ax=None, units="eV", qlabels=None, branch_range=None, match_bands=False, temp=None,
-             fontsize=12, **kwargs) -> Figure:
+             points=None, fontsize=12, **kwargs) -> Figure:
         r"""
         Plot the phonon band structure with matplotlib.
 
@@ -1098,6 +1101,8 @@ See also <https://forum.abinit.org/viewtopic.php?f=10&t=545>
             match_bands: if True the bands will be matched based on the scalar product between the eigenvectors.
             temp: Temperature in Kelvin. If not None, a scatter plot with the Bose-Einstein occupation factor
                 at temperature `temp` is added.
+            points: Marker object with the position and the size of the marker.
+                Used for plotting purpose e.g. QP energies, energy derivatives etc.
             fontsize: Legend and title fontsize.
 
         Returns: |matplotlib-Figure|
@@ -1116,6 +1121,9 @@ See also <https://forum.abinit.org/viewtopic.php?f=10&t=545>
 
         # Plot the phonon branches.
         self.plot_ax(ax, branch_range, units=units, match_bands=match_bands, **kwargs)
+
+        if points is not None:
+            ax.scatter(points.x, np.array(points.y), s=np.abs(points.s), **points.scatter_kwargs)
 
         if temp is not None:
             # Scatter plot with Bose-Einstein occupation factors for T = temp
@@ -1618,7 +1626,7 @@ See also <https://forum.abinit.org/viewtopic.php?f=10&t=545>
         """
         lw = kwargs.pop("lw", 2)
         factor = abu.phfactor_ev2units(units)
-        ntypat = self.structure.ntypesp
+        ntypat = self.structure.n_elems
 
         # Prepare PJDOS.
         close_phdos_file = False
@@ -1759,7 +1767,7 @@ See also <https://forum.abinit.org/viewtopic.php?f=10&t=545>
         """
         lw = kwargs.pop("lw", 2)
         factor = abu.phfactor_ev2units(units)
-        ntypat = self.structure.ntypesp
+        ntypat = self.structure.n_elems
 
         # Prepare PJDOS.
         close_phdos_file = False
@@ -2050,7 +2058,7 @@ See also <https://forum.abinit.org/viewtopic.php?f=10&t=545>
 
         ax, fig, plt = get_ax_fig_plt(ax=ax)
         cmap = plt.get_cmap(colormap)
-        ntypat = self.structure.ntypesp
+        ntypat = self.structure.n_elems
 
         if is_non_analytical_direction:
             ax.set_title("q-direction = %s" % repr(qpoint), fontsize=fontsize)
@@ -2932,7 +2940,7 @@ class PhbstFile(AbinitNcFile, Has_Structure, Has_PhononBands, NotebookWriter):
             path: path to the file
         """
         super().__init__(filepath)
-        self.reader = PHBST_Reader(filepath)
+        self.reader = self.r = PHBST_Reader(filepath)
 
         # Initialize Phonon bands and add metadata from ncfile
         self._phbands = PhononBands.from_file(filepath)
@@ -2974,7 +2982,7 @@ class PhbstFile(AbinitNcFile, Has_Structure, Has_PhononBands, NotebookWriter):
 
     def close(self) -> None:
         """Close the file."""
-        self.reader.close()
+        self.r.close()
 
     @lazy_property
     def params(self) -> dict:
@@ -3615,12 +3623,16 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         # Open the file, read data and create objects.
         super().__init__(filepath)
 
-        self.reader = r = PhdosReader(filepath)
-        self.wmesh = r.wmesh
+        self.reader = self.r = PhdosReader(filepath)
+        self.wmesh = self.r.wmesh
 
     def close(self) -> None:
         """Close the file."""
-        self.reader.close()
+        self.r.close()
+
+    @lazy_property
+    def qptrlatt(self):
+        return self.r.read_value("qptrlatt")
 
     @lazy_property
     def params(self) -> dict:
@@ -3658,12 +3670,12 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
     @lazy_property
     def structure(self) -> Structure:
         """|Structure| object."""
-        return self.reader.structure
+        return self.r.structure
 
     @lazy_property
     def phdos(self) -> PhononDos:
         """|PhononDos| object."""
-        return self.reader.read_phdos()
+        return self.r.read_phdos()
 
     @lazy_property
     def pjdos_symbol(self):
@@ -3672,7 +3684,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         where PhononDos is the contribution to the total DOS summed over atoms
         with chemical symbol `symbol`.
         """
-        return self.reader.read_pjdos_symbol_dict()
+        return self.r.read_pjdos_symbol_dict()
 
     @lazy_property
     def msqd_dos(self):
@@ -3680,7 +3692,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         |MsqDos| object with Mean square displacement tensor in cartesian coords.
         Allows one to calculate Debye Waller factors by integration with 1/omega and the Bose-Einstein factor.
         """
-        return self.reader.read_msq_dos()
+        return self.r.read_msq_dos()
 
     @add_fig_kwargs
     def plot_pjdos_type(self, units="eV", stacked=True, colormap="jet", alpha=0.7, exchange_xy=False,
@@ -3831,7 +3843,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         Returns: |matplotlib-Figure|.
         """
         lw = kwargs.pop("lw", 2)
-        ntypat = self.structure.ntypesp
+        ntypat = self.structure.n_elems
         factor = abu.phfactor_ev2units(units)
 
         # Three rows for each direction.
@@ -3843,7 +3855,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         cmap = plt.get_cmap(colormap)
 
         # symbol --> [three, number_of_frequencies] in cart dirs
-        pjdos_symbol_rc = self.reader.read_pjdos_symbol_xyz_dict()
+        pjdos_symbol_rc = self.r.read_pjdos_symbol_xyz_dict()
 
         xx = self.phdos.mesh * factor
         for idir, ax in enumerate(ax_list):
@@ -3857,7 +3869,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
 
             # Plot Type projected DOSes along cartesian direction idir
             cumulative = np.zeros(len(self.wmesh))
-            for itype, symbol in enumerate(self.reader.chemical_symbols):
+            for itype, symbol in enumerate(self.r.chemical_symbols):
                 color = cmap(float(itype) / max(1, ntypat - 1))
                 yy = pjdos_symbol_rc[symbol][idir] / factor
 
@@ -3900,7 +3912,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         """
         # Define num_plots and ax2atom depending on view.
         factor = abu.phfactor_ev2units(units)
-        #natom, ntypat = len(self.structure), self.structure.ntypesp
+        #natom, ntypat = len(self.structure), self.structure.n_elems
         lw = kwargs.pop("lw", 2)
 
         # Select atoms.
@@ -3915,7 +3927,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         cmap = plt.get_cmap(colormap)
 
         # [natom, three, nomega] array with PH-DOS projected over atoms and cartesian directions
-        pjdos_atdir = self.reader.read_pjdos_atdir()
+        pjdos_atdir = self.r.read_pjdos_atdir()
 
         xx = self.phdos.mesh * factor
         for idir, ax in enumerate(ax_list):
@@ -4011,7 +4023,7 @@ class PhdosFile(AbinitNcFile, Has_Structure, NotebookWriter):
         total_dos = self.phdos.to_pymatgen()
 
         # [natom, three, nomega] array with PH-DOS projected over atoms and cartesian directions"""
-        pjdos_atdir = self.reader.read_pjdos_atdir()
+        pjdos_atdir = self.r.read_pjdos_atdir()
 
         factor = abu.phfactor_ev2units("thz")
         summed_pjdos = np.sum(pjdos_atdir, axis=1) / factor
@@ -4373,7 +4385,7 @@ class PhononBandsPlotter(NotebookWriter):
             width_ratios: Ratio between the width of the phonon bands plots and the DOS plots.
                 Used if plotter has DOSes.
             fontsize: fontsize for titles and legend.
-            linestyle_dict: Dictionary mapping labels to linestyle options passed to |plotly.graph_objects.scatter|.
+            linestyle_dict: Dictionary mapping labels to linestyle options passed to plotly.graph_objects.scatter.
 
         Returns: |plotly.graph_objects.Figure|
         """

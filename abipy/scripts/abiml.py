@@ -17,6 +17,7 @@ from time import time
 from abipy.core.structure import Structure
 from abipy.tools.printing import print_dataframe
 
+
 ASE_OPTIMIZERS = aseml.ase_optimizer_cls("__all__")
 
 DEFAULT_NN = "chgnet"
@@ -265,6 +266,7 @@ def abinit_relax(ctx, filepath,
 @click.argument("filepath", type=str)
 @add_nn_name_opt
 @click.option('--temperature', "-t", default=600, type=float, show_default=True, help='Temperature in Kelvin')
+@click.option('--pressure', "-p", default=1, type=float, show_default=True, help='Pressure in ???.')
 @click.option('--timestep', "-ts", default=1, type=float, show_default=True, help='Timestep in fs.')
 @click.option('--steps', "-s", default=1000, type=int, show_default=True, help='Number of timesteps.')
 @click.option('--loginterval', "-l", default=100, type=int, show_default=True, help='Interval for record the log.')
@@ -274,7 +276,7 @@ def abinit_relax(ctx, filepath,
 @add_workdir_verbose_opts
 @click.option('--config', default='abiml_md.yml', type=click.Path(), callback=set_default, is_eager=True, expose_value=False)
 def md(ctx, filepath, nn_name,
-       temperature, timestep, steps, loginterval, ensemble,
+       temperature, pressure, timestep, steps, loginterval, ensemble,
        fix_inds, fix_symbols,
        workdir, verbose):
     """
@@ -298,7 +300,7 @@ def md(ctx, filepath, nn_name,
     atoms = aseml.get_atoms(filepath)
     aseml.fix_atoms(atoms, fix_inds=fix_inds, fix_symbols=fix_symbols)
 
-    ml_md = aseml.MlMd(atoms, temperature, timestep, steps, loginterval, ensemble, nn_name, verbose,
+    ml_md = aseml.MlMd(atoms, temperature, pressure, timestep, steps, loginterval, ensemble, nn_name, verbose,
                        workdir, prefix="_abiml_md_")
     print(ml_md.to_string(verbose=verbose))
     ml_md.run()
@@ -422,7 +424,7 @@ def ph(ctx, filepath, nn_names,
 
     To specify the list of ML potential, use e.g.:
 
-        abiml.py ddb -nn-names m3gnet --nn-names chgnet [...]
+        abiml.py ph -nn-names m3gnet --nn-names chgnet [...]
 
     To use all NN potentials supported, use:
 
@@ -604,7 +606,7 @@ def validate(ctx, filepaths,
              workdir, verbose
             ):
     """
-    Compare ab-initio energies, forces, and stresses with ml-computed ones.
+    Compare ab-initio energies, forces, and stresses with ML-computed ones.
 
     usage example:
 
@@ -723,6 +725,28 @@ def gs(ctx, filepath, nn_name,
 @main.command()
 @herald
 @click.pass_context
+@click.argument("filepath", type=str)
+@click.option("--qpoint", "-q", nargs=3, type=float, help="q-point in reduced coordinates.")
+@add_nn_name_opt
+@add_workdir_verbose_opts
+@click.option('--config', default='abiml_phfrozen.yml', type=click.Path(), callback=set_default, is_eager=True, expose_value=False)
+def phddb_frozen(ctx, filepath, qpoint, nn_name,
+       workdir, verbose,
+       ):
+    """
+    Frozen-phonon calculation with ML potential.
+    """
+    qpoint = [0, 0, 0]
+    eta_list = [1, 2]
+    frozen_ph = aseml.FrozenPhononMl.from_ddb_file(filepath, qpoint, eta_list, nn_name, verbose, workdir, prefix="_abiml_phfrozen")
+    frozen_ph.run()
+
+    return 0
+
+
+@main.command()
+@herald
+@click.pass_context
 @click.argument("elements", nargs=-1, type=str)
 @add_nn_names_opt
 @add_workdir_verbose_opts
@@ -744,43 +768,6 @@ def cwf_eos(ctx, elements, nn_names,
     print(ml_cwf_eos.to_string(verbose=verbose))
     ml_cwf_eos.run()
     return 0
-
-
-#@main.command()
-#@herald
-#@click.pass_context
-#@click.argument('filepaths', type=str, nargs=-1)
-#@add_nn_name_opt
-#@add_workdir_verbose_opts
-#@click.option('--config', default='abiml_train.yml', type=click.Path(), callback=set_default, is_eager=True, expose_value=False)
-#def train(ctx, filepaths,
-#          nn_name,
-#          #nprocs,
-#          workdir, verbose
-#          ):
-#    """
-#    Train a ML potential using the trajectory stored on FILE.
-#
-#    usage example:
-#
-#    \b
-#        abiml.py train FILE --nn-names matgl
-#
-#    where `FILE` can be either a _HIST.nc or a vasprun.xml FILE.
-#    """
-#    if nn_name == "matgl":
-#        from abipy.ml.matgl import MatglSystem
-#        s = MatglSystem(filepaths, workdir, verbose)
-#
-#    elif nn_name == "chgnet":
-#        from abipy.ml.chgnet import ChgnetSystem
-#        s = ChgnetSystem(filepaths, workdir, verbose)
-#
-#    else:
-#        raise ValueError(f"Unsupported {nn_name=}")
-#
-#    s.train()
-#    return 0
 
 
 if __name__ == "__main__":

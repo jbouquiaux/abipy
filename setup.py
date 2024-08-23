@@ -145,13 +145,14 @@ def cleanup():
 
 install_requires = [
     "monty",
+    "packaging",
     "tabulate",
     "apscheduler<=3.10.4",
     "pydispatcher>=2.0.5",
     "tqdm",
     "pyyaml>=3.11",
     "pandas",
-    "numpy",
+    "numpy<2.0.0",
     "scipy",
     "spglib",
     "pymatgen>=2022.0.14",
@@ -163,8 +164,8 @@ install_requires = [
     "chart-studio",
     "click",
     "phonopy",
-    "custodian",
     "ase",
+    #"custodian",
     #pydantic,
     #panel,
 ]
