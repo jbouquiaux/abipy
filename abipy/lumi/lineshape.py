@@ -189,11 +189,17 @@ class Lineshape():
         """
         return (np.sum(self.S_nu()))
 
-    def Delta_Q(self):
+    def Delta_Q(self, unit="SI"):
         """
-        Total Delta_Q
+        Total Delta_Q, "SI" or "atomic" unit. 
         """
-        return (np.sqrt(np.sum(self.Delta_Q_nu() ** 2)))
+        dQ=np.sqrt(np.sum(self.Delta_Q_nu() ** 2))
+        if unit=="SI":
+            return (dQ)
+        if unit=="atomic":
+            kgm2_amuAng2=6.0221366516752*1e26*1e20
+            dQ=dQ*np.sqrt(kgm2_amuAng2)
+            return (dQ)
 
     def p_nu(self):
         """
@@ -203,7 +209,7 @@ class Lineshape():
 
     def eff_freq_multiD(self):
         """
-        Effective coupling frequency, eq. (13) of  https://doi.org/10.1002/adom.202100649
+        Effective coupling frequency, eq. (13) of  https://doi.org/10.1002/adom.202100649, in eV
         """
         w = np.sqrt(np.sum(self.p_nu() * self.ph_eigfreq ** 2))
         return (w)
