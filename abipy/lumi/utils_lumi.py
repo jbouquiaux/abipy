@@ -4,7 +4,10 @@
 import numpy as np
 from numpy import fft
 from scipy import signal
-from scipy.integrate import simps
+try:
+    from scipy.integrate import simpson as simps
+except ImportError:
+    from scipy.integrate import simps
 import abipy.core.abinit_units as abu
 from abipy.tools.plotting import get_ax_fig_plt, add_fig_kwargs,get_axarray_fig_plt
 
