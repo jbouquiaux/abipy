@@ -199,12 +199,19 @@ class Embedded_phonons(Phonopy):
                     ifc_emb[i][j]=factor_ifc*ifc_defect[mapping.index(i)][mapping.index(j)]
                     
                 # enforce ASR
+        #if asr=="previous":
+        #    print(f"\n Enforce ASR")
+        #    for alpha in [0,1,2]:
+        #        for beta in [0,1,2]:
+        #            for i,atom1 in enumerate(stru_emb):
+        #                ifc_emb[i][i][alpha,beta] = -(accoustic_sum(ifc_emb,i)[alpha,beta]-ifc_emb[i][i][alpha,beta])
+
         if asr==True:
             print(f"\n Enforce ASR")
-            for alpha in [0,1,2]:
-                for beta in [0,1,2]:
-                    for i,atom1 in enumerate(stru_emb):
-                        ifc_emb[i][i][alpha,beta] = -(accoustic_sum(ifc_emb,i)[alpha,beta]-ifc_emb[i][i][alpha,beta])
+            sum_ac=np.sum(ifc_emb,axis=1)
+            for i,atom1 in enumerate(stru_emb):
+                for alpha in [0,1,2]:
+                    ifc_emb[i][i][alpha][alpha] = - (sum_ac[i][alpha][alpha]-ifc_emb[i][i][alpha][alpha])
         
         ########################
         # change the nac params
