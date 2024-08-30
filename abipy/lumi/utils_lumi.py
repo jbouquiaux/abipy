@@ -125,7 +125,7 @@ def L_hw_help(E_x, A):
         w: Gaussian broadening applied to the vibronic peaks, in meV
         model: 'multi-D' for full phonon decomposition, 'one-D' for 1D-CCM PL spectrum.
     """     
-    C = 1 / (simps(A * E_x ** 3, E_x))
+    C = 1 / (simps(y=A * E_x ** 3, x=E_x))
     I = C * A * E_x ** 3  # intensity prop to energy CUBE
     return (E_x, I)
 
