@@ -297,6 +297,12 @@ class Lineshape():
         local_ratio=localization_ratio(self.ph_eigvec)
 
         if with_local_ratio==True:
+            # reorder for better plot visualisation
+            idx_order =  np.argsort(local_ratio)#[::-1]
+            local_ratio=local_ratio[idx_order]
+            omega_nu=omega_nu[idx_order]
+            S_nu=S_nu[idx_order]
+
             import matplotlib as mpl
             cmap = mpl.colormaps["plasma"]
             #norm = mpl.colors.Normalize(vmin=np.min(local_ratio),vmax=np.max(local_ratio))
@@ -310,7 +316,7 @@ class Lineshape():
             ax2=ax.twinx()
             ax2.scatter(omega_nu,S_nu,c=color_list,norm=norm,alpha=0.6)
             ax2.vlines(x=omega_nu, ymin=0, ymax=S_nu,colors=color_list,linestyles="solid",alpha=0.6,norm=norm)
-            cbar = plt.colorbar(sm,ax=ax2,location="top",shrink=0.6,label='mode localisation')
+            cbar = plt.colorbar(sm,ax=ax2,location="top",shrink=0.6,label=r'$\beta_{\nu}$')
             ax2.set_ylabel(r'$S_{\nu}$')
 
         if with_S_nu==True:
