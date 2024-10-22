@@ -7,15 +7,12 @@ import pandas as pd
 
 from abipy.core.structure import Structure
 from abipy.abilab import abiopen
-import matplotlib.pyplot as plt
-#from mpl_toolkits.mplot3d import Axes3D
 import math
 from mpmath import coth
 try:
     from scipy.integrate import simpson as simps
 except ImportError:
     from scipy.integrate import simps
-#from scipy.special import factorial
 from abipy.tools.plotting import get_ax_fig_plt, add_fig_kwargs,get_axarray_fig_plt
 import abipy.core.abinit_units as abu
 from abipy.lumi.utils_lumi import A_hw_help,L_hw_help,plot_emission_spectrum_help
@@ -396,8 +393,7 @@ class DeltaSCF():
         approx of same eff frequency in gs and ex and T = 0K.
         See eq. (9) of https://doi.org/10.1002/adom.202100649
         """
-        FC = np.exp(self.S_em()) * self.S_em() ** n / math.factorial(n)
-        return FC
+        return np.exp(self.S_em()) * self.S_em() ** n / math.factorial(n)
     
     def A_hw(self,T, lamb=3, w=3):
         """
@@ -546,15 +542,13 @@ class DeltaSCF():
         rows.append(d)
         index.append(label)
 
-        df=pd.DataFrame(rows,index=index)
+        return pd.DataFrame(rows,index=index)
 
-        return df
-    
-    def draw_displacements_vesta(self,in_path, mass_weighted = False, draw_forces=False, 
+    def draw_displacements_vesta(self,in_path, mass_weighted = False,
                  scale_vector=20,width_vector=0.3,color_vector=[255,0,0],centered=True,
                  factor_keep_vectors=0.1,
                  out_path="VESTA_FILES",out_filename="gs_ex_relaxation"):
-        """
+        r"""
         Draw the ground state to excited state atomic relaxation on a vesta structure.
 
         Args:
@@ -635,11 +629,8 @@ class DeltaSCF():
 
         print(f"Vesta files created and stored in : \n {os.getcwd()}/{out_path}")
 
-        return 
-     
-
     @add_fig_kwargs
-    def displacements_visu(self,a_g=10,**kwargs):
+    def displacements_visu(self, a_g=10, **kwargs):
         """
         Make a 3d visualisation of the displacements induced by the electronic transition =
         Difference between ground state and excited state atomic positions.
@@ -664,20 +655,20 @@ class DeltaSCF():
 
         M = self.amu_list()*(u**2+v**2+w**2)
 
-        fig=plt.figure()
+        ax, fig, plt = get_ax_fig_plt(ax=None)
         ax = fig.add_subplot(111, projection='3d')
 
         ax.quiver(x, y, z,u*a_g,v*a_g,w*a_g, color='k',linewidths=1,**kwargs)
         sc = ax.scatter(x, y, z, c=M, marker='o', s=60, cmap="jet",**kwargs)
 
-        clb=plt.colorbar(sc)
+        clb = plt.colorbar(sc)
         clb.set_label(r'$\Delta Q^2$ per atom')
+
         return fig
 
-
     @add_fig_kwargs
-    def plot_delta_R_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None,scatter=False, **kwargs):
-        """
+    def plot_delta_R_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None, **kwargs):
+        r"""
         Plot \DeltaR vs distance from defect for each atom, colored by species.
 
         Args:
@@ -715,8 +706,8 @@ class DeltaSCF():
         return fig
 
     @add_fig_kwargs
-    def plot_delta_F_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None, scatter=False,**kwargs):
-        """
+    def plot_delta_F_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None, **kwargs):
+        r"""
         Plot \DeltaF vs distance from defect for each atom, colored by species.
 
         Args:
@@ -753,7 +744,7 @@ class DeltaSCF():
         return fig
 
     @add_fig_kwargs
-    def plot_four_BandStructures(self,nscf_files,ax_mat=None,ylims=[-5,5],**kwargs):
+    def plot_four_BandStructures(self, nscf_files, ax_mat=None, ylims=(-5, 5), **kwargs):
         """
         plot the 4 band structures.
         nscf_files is the list of Ag, Agstar, Aestar, Ae nscf gsr file paths.
@@ -845,7 +836,7 @@ class DeltaSCF():
 
         Returns: |matplotlib-Figure|
         """
-        ax,fig,plt=get_ax_fig_plt(ax=ax)
+        ax, fig, plt = get_ax_fig_plt(ax=ax)
 
         delta_Q=self.delta_q()
         E_zpl=self.E_zpl()
@@ -860,7 +851,6 @@ class DeltaSCF():
         E_gs=0.5*omega_gs_sq.real*(Qs)**2+0 # ref at (0,0)
         E_ex=0.5*omega_ex_sq.real*(Qs-delta_Q)**2+ self.E_zpl()# min at (delta_Q,ae_energy)
 
-
         #  parabolas
         ax.plot(Qs,E_gs,'k',zorder=1)
         ax.plot(Qs,E_ex,'k',zorder=1)
@@ -872,7 +862,6 @@ class DeltaSCF():
         ax.scatter(xs,ys,s=50,color='k',zorder=2)
 
         # arrows
-
         ax.annotate("", xy=(0, E_zpl+0.95*new_FC_ex), xytext=(0, 0),
             arrowprops=dict(arrowstyle="->",color="b",lw=1))
         ax.annotate(r' $E_{abs}$='+format(self.E_abs(),".2f")+' eV  ', xy=(0,(E_zpl+new_FC_ex)/2),ha='left',fontsize=font_size)
@@ -909,8 +898,6 @@ class DeltaSCF():
             arrowprops=dict(arrowstyle="<-",color="k",lw=1.5))
         ax.text(x=0.7*delta_Q,y=-new_FC_gs, s='Configuration coordinate Q',fontsize=10,ha='center')
 
-
         ax.axis('off')
 
         return fig
-
