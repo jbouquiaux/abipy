@@ -769,7 +769,7 @@ def ddb_ucell_to_phonopy_supercell(unit_ddb=None,unit_ddb_filepath=None,nac=Fals
     ngqpt=unit_ddb.guessed_ngqpt
     
     # create a phonopy object from the ddb 
-    phonopy_ucell= unit_ddb.anaget_phonopy_ifc(ngqpt=ngqpt, asr=1, dipdip=0, chneut=1,
+    phonopy_ucell= unit_ddb.anaget_phonopy_ifc(ngqpt=ngqpt, asr=2, dipdip=0, chneut=1,
                                           set_masses=True)
     
     # fc from (uc_size x sc_size) to (sc_size x sc_size)

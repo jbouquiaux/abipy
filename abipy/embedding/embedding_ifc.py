@@ -223,6 +223,11 @@ class Embedded_phonons(Phonopy):
 
             if vacancies_list is not None:
                 nac_params_emb["born"]=np.delete(nac_params_emb["born"],vacancies_list,0)
+            if interstitial_list is not None:
+                for interstial in interstitial_list:
+                    nac=np.append(nac_params_emb["born"],(stru_emb[-1].specie.common_oxidation_states[0])*np.eye(3))
+
+                    nac_params_emb["born"]=nac.reshape(len(stru_emb),3,3)
         else:
             nac_params_emb=None
 
