@@ -676,7 +676,7 @@ class DeltaSCF():
 
 
     @add_fig_kwargs
-    def plot_delta_R_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None, **kwargs):
+    def plot_delta_R_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None,scatter=False, **kwargs):
         """
         Plot \DeltaR vs distance from defect for each atom, colored by species.
 
@@ -701,15 +701,19 @@ class DeltaSCF():
 
         ax, fig, plt = get_ax_fig_plt(ax=ax)
         for i, symbol in enumerate(symbols):
-            ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
+            if scatter==True:
+                plt.scatter(xs[i], ys[i], label=symbol,color=colors[i],**kwargs)
+            else:
+                ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
             ax.set_xlabel(r'Distance from defect ($\AA$)')
             ax.set_ylabel(r'$\Delta R $ ($\AA$)')
             ax.legend()
+            
 
         return fig
 
     @add_fig_kwargs
-    def plot_delta_F_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None, **kwargs):
+    def plot_delta_F_distance(self, defect_symbol,colors=["k","r","g","b","c","m"],ax=None, scatter=False,**kwargs):
         """
         Plot \DeltaF vs distance from defect for each atom, colored by species.
 
@@ -734,9 +738,12 @@ class DeltaSCF():
 
         ax, fig, plt = get_ax_fig_plt(ax=ax)
         for i, symbol in enumerate(symbols):
-            ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
+            if scatter==True:
+                plt.scatter(xs[i], ys[i], label=symbol,color=colors[i],**kwargs)
+            else:
+                ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
             ax.set_xlabel(r'Distance from defect ($\AA$)')
-            ax.set_ylabel(r'$\Delta F$ ($eV/\AA$)')
+            ax.set_ylabel(r'$\Delta F $ ($eV/\AA$)')
             ax.legend()
 
         return fig
@@ -797,6 +804,13 @@ class DeltaSCF():
             ax.hlines(y=ebands_dn[i][0]-fermie,xmin=0.2,xmax=0.8,color="r")
 
             if with_occ==True:
+                edge_colors=np.array([[1,0,0]]*len(occs[i][1][0]))
+                colors=edge_colors.copy()
+                for j,color in enumerate(colors):
+                    if occs[i][1][0][j]!=1:
+                        colors[j]=[1,1,1]
+                ax.scatter(x=[+0.5]*len(ebands_dn[i][0]),y=ebands_dn[i]-fermie,c=colors,edgecolors=edge_colors)
+
                 edge_colors=np.array([[0,0,0]]*len(occs[i][0][0]))
                 colors=edge_colors.copy()
                 for j,color in enumerate(colors):
@@ -804,12 +818,6 @@ class DeltaSCF():
                         colors[j]=[1,1,1]
                 ax.scatter(x=[-0.5]*len(ebands_up[i][0]),y=ebands_up[i]-fermie,c=colors,edgecolors=edge_colors)
 
-                edge_colors=np.array([[1,0,0]]*len(occs[i][1][0]))
-                colors=edge_colors.copy()
-                for j,color in enumerate(colors):
-                    if occs[i][1][0][j]!=1:
-                        colors[j]=[1,1,1]
-                ax.scatter(x=[+0.5]*len(ebands_dn[i][0]),y=ebands_dn[i]-fermie,c=colors,edgecolors=edge_colors)
 
             ax.xaxis.set_visible(False)
             ax.grid()
