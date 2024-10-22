@@ -704,7 +704,9 @@ class DeltaSCF():
             if scatter==True:
                 plt.scatter(xs[i], ys[i], label=symbol,color=colors[i],**kwargs)
             else:
-                ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
+                ax.vlines(x=xs[i], ymin=0, ymax=ys[i],linestyles="solid",alpha=1,color=colors[i],label=symbol)
+                ax.scatter(xs[i],ys[i],alpha=1,color=colors[i])
+#                ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
             ax.set_xlabel(r'Distance from defect ($\AA$)')
             ax.set_ylabel(r'$\Delta R $ ($\AA$)')
             ax.legend()
@@ -739,9 +741,11 @@ class DeltaSCF():
         ax, fig, plt = get_ax_fig_plt(ax=ax)
         for i, symbol in enumerate(symbols):
             if scatter==True:
-                plt.scatter(xs[i], ys[i], label=symbol,color=colors[i],**kwargs)
+                ax.scatter(xs[i], ys[i], label=symbol,color=colors[i],**kwargs)
             else:
-                ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
+                ax.vlines(x=xs[i], ymin=0, ymax=ys[i],linestyles="solid",alpha=1,color=colors[i],label=symbol)
+                ax.scatter(xs[i],ys[i],alpha=1,color=colors[i])
+#                ax.stem(xs[i], ys[i], label=symbol, linefmt=colors[i], markerfmt="o" + colors[i],**kwargs)
             ax.set_xlabel(r'Distance from defect ($\AA$)')
             ax.set_ylabel(r'$\Delta F $ ($eV/\AA$)')
             ax.legend()
@@ -798,10 +802,10 @@ class DeltaSCF():
         fermie=fermies[0]
 
         ax_mat, fig, plt = get_axarray_fig_plt(ax_mat, nrows=1, ncols=len(scf_files),
-                                               sharex=True, sharey=True, squeeze=False,figsize=(10,5))
+                                               sharex=True, sharey=True, squeeze=False,**kwargs)
         for i,ax in enumerate(ax_mat[0]):
-            ax.hlines(y=ebands_up[i][0]-fermie,xmin=-0.8,xmax=-0.2,color="k")
-            ax.hlines(y=ebands_dn[i][0]-fermie,xmin=0.2,xmax=0.8,color="r")
+            ax.hlines(y=ebands_up[i][0]-fermie,xmin=-0.8,xmax=-0.2,color="k",alpha=0.5)
+            ax.hlines(y=ebands_dn[i][0]-fermie,xmin=0.2,xmax=0.8,color="r",alpha=0.5)
 
             if with_occ==True:
                 edge_colors=np.array([[1,0,0]]*len(occs[i][1][0]))
@@ -823,8 +827,8 @@ class DeltaSCF():
             ax.grid()
             ax.set_title(titles[i])
             ax.set_xlim(-1.5,1.5)
+            ax.set_ylim(ylims)
 
-        ax_mat[0,0].set_ylim(ylims)
         ax_mat[0,0].set_ylabel("Energy (eV)")
 
         return fig
